@@ -141,7 +141,6 @@ def create_payment(request):
                 response = JsonResponse(post_params)
                 return response
         else:
-            # payment already exist
             if payment.status == PaymentStatus.ERROR:
                 logger.info('status Error, should create new')
                 post_params = {
@@ -270,40 +269,7 @@ def backup_to_csv(request):
     data['case'] = InsuranceCase
     data['additional'] = AdditionalData
     cursor = connection.cursor()
-    cursor.execute('''SELECT insurance_policy.id AS Policy_number,
-                        insurance_policy.request_date AS Policy_date,
-                        user_profile.first_name AS First_name,
-                        user_profile.last_name AS Last_name,
-                        user_profile.email AS Email,
-                        insurance_policy.start_date AS Start_date,
-                        insurance_policy.expiration_date AS Expiration_date,
-                        insurance_policy.expiration_date - \
-                        insurance_policy.start_date AS Number_of_days,
-                        crypto_exchange.name AS Crypto_exchange_name,
-                        crypto_exchange.coverage_limit AS Limit_BTC,
-                        insurance_policy.cover AS Insured_Limit,
-                        insurance_policy.fee AS Premium_paid,
-                        user_payments.amount AS User_paid,
-                        user_payments.currency AS User_currency,
-                        crypto_exchange.rate AS Premium_rate,
-                        user_payments.update_date AS Premium_payment_date,
-                        insurance_case.loss_value AS Outstanding_claim_BTC,
-                        insurance_case.incident_date AS Date_of_claim,
-                        insurance_case.refund_paid AS Paid_claim_BTC,
-                        insurance_case.request_date AS Date_of_claim_payment,
-                        insurance_policy.status AS Insurance_policy_status,
-                        user_payments.status AS User_payments_status,
-                        insurance_case.status AS Insurance_case_status
-                        FROM insurance_policy
-                        LEFT JOIN user_profile ON user_profile.id = \
-                        insurance_policy.user
-                        LEFT JOIN crypto_exchange ON crypto_exchange.id = \
-                        insurance_policy.exchange
-                        LEFT JOIN user_payments ON user_payments.id = \
-                        insurance_policy.payment_id
-                        LEFT JOIN insurance_case ON \
-                        insurance_case.insurance = insurance_policy.id
-                        ''')
+    cursor.execute()
     insurance_report = cursor.fetchall()
 
     if request.method == 'GET':
@@ -355,15 +321,14 @@ def backup_to_csv(request):
                 return JsonResponse(responseData)
         except Exception:
             return response
-
 @csrf_protect
 @login_required
 def dashboard(request):
     user = get_object_or_404(
         UserProfile, django_user_id=request.user.id
-    )  # django_user because we're searching in the registred users
+    )  # NOTE: django_user because we're searching in the registred users
 
-    # check for referral user
+    # NOTE: check for referral user
     try:
         userPartner = Partner.objects.get(
             django_user=request.user.id)
@@ -381,78 +346,58 @@ def dashboard(request):
     PAYMENT_ERROR = "REPEAT PAYMENT"
     # NOTE: Getting every {'fee':value} pair so we could use it
     # while filling the form
+    found_free_values = []
     try:
         found_fee_values = insurancy_policy_info.values('fee')
     except Exception:
-        logger.error("Fee values hasn't been found for user with ID: " +
-                     str(user.id))
-        found_fee_values = []
+        logger.error(f"Fee values hasn't been found for user with ID: {{str(user.id)}}" )
 
-    fee_values = []
-    for current_fee_json in found_fee_values:
-        fee_values.append(current_fee_json)
-
+    fee_values = found_fee_values.copy()
     # NOTE: Getting every policy's numbers
-    policy_numbers = []
+    found_policy_numbers = []
     try:
         found_policy_numbers = insurancy_policy_info.values('id')
     except KeyError as error:
-        logger.error("Policy number hasn't been found for user with ID: " +
-                     str(user.id))
-        found_policy_numbers = []
+        logger.error(f"Policy number hasn't been found for user with ID: {{str(user.id)}}")
 
-    for current_policy_number_json in found_policy_numbers:
-        policy_numbers.append(current_policy_number_json)
-
+    policy_numbers = found_policy_numbers.copy()
+ 
     # NOTE: filling 'insurance period' form
 
     try:
         found_start_dates = insurancy_policy_info.values('start_date')
     except KeyError as error:
-        logger.error("Couldn't find start dates for user with ID: " +
-                     str(user.id))
+        logger.error(f"Couldn't find start dates for user with ID: {{str(user.id)}}")
         found_start_dates = []
 
-    start_dates = []
-    for current_date in found_start_dates:
-        start_dates.append(current_date)
-
+    start_dates = found_start_dates.copy()
+    found_expiration_dates = []
     try:
         found_expiration_dates = insurancy_policy_info.values(
             'expiration_date')
     except KeyError as error:
-        logger.error("Couldn't find expirations dates for user with ID: " +
-                     str(user.id))
-        found_expiration_dates = []
+        logger.error(f"Couldn't find expirations dates for user with ID: {{str(user.id)}}")
 
-    expiration_dates = []
-    for current_date in found_expiration_dates:
-        expiration_dates.append(current_date)
+    expiration_dates = found_expiration_dates.copy()
 
     # NOTE: filling 'Limit of liability' form
+    found_limits_of_liability = []
     try:
         found_limits_of_liability = insurancy_policy_info.values('cover_btc')
     except KeyError as error:
-        logger.error("Couldn't find limits of liability for user with ID: " +
-                     str(user.id))
-        found_limits_of_liability = []
-
-    limits_of_liability = []
-    for current_limit in found_limits_of_liability:
-        limits_of_liability.append(current_limit)
+        logger.error(f"Couldn't find limits of liability for user with ID: {{str(user.id)}}")
+        
+    limits_of_liability = found_limits_of_liability.copy()
 
     # NOTE: filling 'date of formatting' form
     try:
         found_dates_of_formatting = insurancy_policy_info.values(
             'request_date')
     except KeyError as error:
-        logger.error("Couldn't find dates of formatting for user with ID: " +
-                     str(user.id))
+        logger.error(f"Couldn't find dates of formatting for user with ID: {{str(user.id)}}")
         found_dates_of_formatting = []
 
-    dates_of_formatting = []
-    for current_date_of_formatting in found_dates_of_formatting:
-        dates_of_formatting.append(current_date_of_formatting)
+    dates_of_formatting = found_dates_of_formatting.copy()
 
     # NOTE: filling "Crypto exchange" form
     try:
@@ -462,9 +407,7 @@ def dashboard(request):
                      str(user.id))
         found_stock_exchanges = []
 
-    stock_exchange_ids = []
-    for current_stock_exchange_id in found_stock_exchanges:
-        stock_exchange_ids.append(current_stock_exchange_id)
+    stock_exchange_ids = found_stock_exchanges.copy()
 
     # NOTE: Filling "Status" form
     try:
@@ -474,9 +417,7 @@ def dashboard(request):
                      str(user.id))
         found_policy_statuses = []
 
-    policy_statuses = []
-    for policy_status in found_policy_statuses:
-        policy_statuses.append(policy_status)
+    policy_statuses = found_policy_statuses.copy()
 
     contextPolicy = []
     for current_id, policy_id in enumerate(insurancy_policy_info):
@@ -496,15 +437,15 @@ def dashboard(request):
         except (IndexError, KeyError) as error:
             logger.error(
                 "An error has occured while trying to get policy number.\
-                Reason: " + str(error))
+                Reason: {{str(error)}}"  )
 
         # NOTE: filling 'Amount of premium' form
         try:
             context_fee = fee_values[current_id]['fee']
         except (IndexError, KeyError) as error:
             logger.error(
-                "An error has occured while trying to get fee. Reason: " +
-                str(error))
+                f"An error has occured while trying to get fee. Reason: {{str(error)}}" 
+                )
 
         # NOTE: filling 'insurane period' form
         try:
@@ -517,16 +458,16 @@ def dashboard(request):
             if policy_id.payment_id and policy_id.payment_id.status < 0:
                 context_insurance_period = PAYMENT_ERROR
                 logger.error(
-                    "An error has occured while trying to get insurane period.\
-                    Reason: " + str(error))
+                    f"An error has occured while trying to get insurane period.\
+                    Reason: {{str(error)}}" )
 
         # NOTE: filling 'Limit of liability' form
         try:
             context_limit = limits_of_liability[current_id]['cover_btc']
         except (IndexError, KeyError) as error:
             logger.error(
-                "An error has occured while trying to get limit . Reason: " +
-                str(error))
+                f"An error has occured while trying to get limit . Reason: {{str(error)}}" +
+                )
 
         # NOTE: filling 'date of formatting' form
         try:
@@ -534,8 +475,8 @@ def dashboard(request):
                 dates_of_formatting[current_id]['request_date'].date())
         except (IndexError, KeyError, AttributeError) as error:
             logger.error(
-                "An error has occured while trying to get date of formatting.\
-                Reason: " + str(error))
+                f"An error has occured while trying to get date of formatting.\
+                Reason: {{str(error)}}" + )
 
         # NOTE: filling "Crypto exchange" form
         try:
@@ -544,8 +485,8 @@ def dashboard(request):
             context_stock_exchange = exchange_tag['name']
         except (IndexError, KeyError) as error:
             logger.error(
-                "An error has occured while trying to get exchange tag.\
-                Reason: " + str(error))
+                f"An error has occured while trying to get exchange tag.\
+                Reason: {{str(error)}}" + )
 
         # NOTE: filling "policy status" form
 

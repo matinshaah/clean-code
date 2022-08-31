@@ -40,7 +40,7 @@ class jsonic(object):
         def jsoner(obj, **kwargs):
             dic = {}
             key = None
-            thedic = None
+            dictionary = None
             recurse_limit = 2
             thefields = obj._meta.get_all_field_names()
             kwargs.update(self.deckeywords) # ??
@@ -65,10 +65,10 @@ class jsonic(object):
             ## first vanilla fields
             for f in thefields:
                 try:
-                    thedic = getattr(obj, "%s_set" % f)
+                    dictionary = getattr(obj, "%s_set" % f)
                 except AttributeError:
                     try:
-                        thedic = getattr(obj, f)
+                        dictionary = getattr(obj, f)
                     except AttributeError: pass
                     except ObjectDoesNotExist: pass
                     else:
@@ -78,34 +78,31 @@ class jsonic(object):
                     key = "%s_set" % f
                 
                 if key:
-                    if hasattr(thedic, "__class__") and hasattr(thedic, "all"):
-                        if callable(thedic.all):
-                            if hasattr(thedic.all(), "json"):
+                    if hasattr(dictionary, "__class__") and hasattr(dictionary, "all"):
+                        if callable(dictionary.all):
+                            if hasattr(dictionary.all(), "json"):
                                 if recurse < recurse_limit:
                                     kwargs['recurse'] = recurse + 1
-                                    dic[key] = thedic.all().json(**kwargs)
-                    elif hasattr(thedic, "json"):
+                                    dic[key] = dictionary.all().json(**kwargs)
+                    elif hasattr(dictionary, "json"):
                         if recurse < recurse_limit:
                             kwargs['recurse'] = recurse + 1
-                            dic[key] = thedic.json(**kwargs)
+                            dic[key] = dictionary.json(**kwargs)
                     else:
                         try:
-                            theuni = thedic.__str__()
+                            theuni = dictionary.__str__()
                         except UnicodeEncodeError:
-                            theuni = thedic.encode('utf-8')
+                            theuni = dictionary.encode('utf-8')
                         dic[key] = theuni
             
             ## now, do we have imagekit stuff in there?
-            if hasattr(obj, "_ik"):
-                if hasattr(obj, obj._ik.image_field):
-                    if hasattr(getattr(obj, obj._ik.image_field), 'size'):
-                        if getattr(obj, obj._ik.image_field):
-                            for ikaccessor in [getattr(obj, s.access_as) for s in obj._ik.specs]:
-                                key = ikaccessor.spec.access_as
-                                dic[key] = {
-                                    'url': ikaccessor.url,
-                                    'width': ikaccessor.width,
-                                    'height': ikaccessor.height,
-                                }
+            if hasattr(obj, "_ik") and hasattr(obj, obj._ik.image_field) and hasattr(getattr(obj, obj._ik.image_field), 'size') and if getattr(obj, obj._ik.image_field):
+                for ik_accessor in [getattr(obj, s.access_as) for s in obj._ik.specs]:
+                    key = ik_accessor.spec.access_as
+                    dic[key] = {
+                        'url': ik_accessor.url,
+                        'width': ik_accessor.width,
+                        'height': ik_accessor.height,
+                    }
             return fn(obj, json=dic, **kwargs)
         return jsoner
